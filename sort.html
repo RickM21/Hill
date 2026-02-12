@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorting Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #1e1e2e;
+            --bar-default: #89b4fa;
+            --bar-compare: #f38ba8; /* Red/Pink for comparison */
+            --bar-min: #f9e2af;     /* Yellow for current minimum (Selection Sort) */
+            --bar-sorted: #a6e3a1;  /* Green for sorted */
+            --text-color: #cdd6f4;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 { margin-bottom: 20px; }
+
+        /* Container for the bars */
+        #visualizer-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            height: 300px;
+            width: 600px;
+            border-bottom: 2px solid var(--text-color);
+            padding: 0 20px;
+            gap: 10px;
+        }
+
+        .bar {
+            width: 40px;
+            background-color: var(--bar-default);
+            border-radius: 5px 5px 0 0;
+            transition: height 0.2s ease, background-color 0.1s;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #111;
+            padding-bottom: 5px;
+        }
+
+        /* State classes */
+        .bar.comparing { background-color: var(--bar-compare) !important; }
+        .bar.min-candidate { background-color: var(--bar-min) !important; }
+        .bar.sorted { background-color: var(--bar-sorted) !important; }
+
+        /* Controls Area */
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        select {
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #313244;
+            color: var(--text-color);
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.8; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #btn-random { background-color: #fab387; color: #1e1e2e; }
+        #btn-start { background-color: #a6e3a1; color: #1e1e2e; }
+        #btn-stop { background-color: #f38ba8; color: #1e1e2e; }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: 20px;
+        }
+        
+        label { font-size: 0.9rem; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>Sorting Visualizer</h1>
+
+    <div id="visualizer-container"></div>
+
+    <div class="controls">
+        <select id="algo-select">
+            <option value="bubble">Bubble Sort</option>
+            <option value="selection">Selection Sort</option>
+        </select>
+
+        <button id="btn-random" onclick="initArray()">Randomize</button>
+        <button id="btn-start" onclick="startSort()">Start</button>
+        <button id="btn-stop" onclick="stopSort()" disabled>Stop</button>
+
+        <div class="slider-container">
+            <label for="speed">Speed</label>
+            <input type="range" id="speed" min="1" max="100" value="50">
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('visualizer-container');
+        const speedInput = document.getElementById('speed');
+        const algoSelect = document.getElementById('algo-select');
+        const btnStart = document.getElementById('btn-start');
+        const btnStop = document.getElementById('btn-stop');
+        const btnRandom = document.getElementById('btn-random');
+
+        let bars = [];
+        const numBars = 10;
+        let isSorting = false;
+        let abortController = false;
+
+        window.onload = initArray;
+
+        function initArray() {
+            if (isSorting) return;
+            container.innerHTML = '';
+            bars = [];
+            
+            for (let i = 0; i < numBars; i++) {
+                const height = Math.floor(Math.random() * 260) + 20;
+                const bar = document.createElement('div');
+                bar.classList.add('bar');
+                bar.style.height = `${height}px`;
+                bar.innerText = height;
+                container.appendChild(bar);
+                bars.push(bar);
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function getDelay() {
+            const val = parseInt(speedInput.value);
+            return 500 - (val * 4.9); 
+        }
+
+        // Helper to swap two bars visually and in DOM
+        function swapBars(bar1, bar2) {
+            const tempHeight = bar1.style.height;
+            const tempText = bar1.innerText;
+            
+            bar1.style.height = bar2.style.height;
+            bar1.innerText = bar2.innerText;
+            
+            bar2.style.height = tempHeight;
+            bar2.innerText = tempText;
+        }
+
+        // Helper to get integer value of a bar
+        function getValue(bar) {
+            return parseInt(bar.style.height);
+        }
+
+        async function startSort() {
+            if (isSorting) return;
+            isSorting = true;
+            abortController = false;
+            
+            btnStart.disabled = true;
+            btnRandom.disabled = true;
+            algoSelect.disabled = true;
+            btnStop.disabled = false;
+
+            const algorithm = algoSelect.value;
+
+            if (algorithm === 'bubble') {
+                await bubbleSort();
+            } else if (algorithm === 'selection') {
+                await selectionSort();
+            }
+            
+            resetUIState();
+        }
+
+        async function bubbleSort() {
+            const len = bars.length;
+            for (let i = 0; i < len; i++) {
+                for (let j = 0; j < len - i - 1; j++) {
+                    if (abortController) return;
+
+                    bars[j].classList.add('comparing');
+                    bars[j + 1].classList.add('comparing');
+
+                    await sleep(getDelay());
+
+                    if (getValue(bars[j]) > getValue(bars[j + 1])) {
+                        swapBars(bars[j], bars[j + 1]);
+                    }
+
+                    bars[j].classList.remove('comparing');
+                    bars[j + 1].classList.remove('comparing');
+                }
+                bars[len - i - 1].classList.add('sorted');
+            }
+            if(bars[0]) bars[0].classList.add('sorted');
+        }
+
+        async function selectionSort() {
+            const len = bars.length;
+            for (let i = 0; i < len; i++) {
+                if (abortController) return;
+
+                let minIdx = i;
+                // Highlight the position we are currently trying to fill
+                bars[i].classList.add('comparing'); 
+
+                for (let j = i + 1; j < len; j++) {
+                    if (abortController) return;
+
+                    // Highlight the bar we are checking
+                    bars[j].classList.add('comparing');
+
+                    await sleep(getDelay());
+
+                    if (getValue(bars[j]) < getValue(bars[minIdx])) {
+                        // If we found a new minimum, unmark the old one (unless it was i)
+                        if (minIdx !== i) {
+                            bars[minIdx].classList.remove('min-candidate');
+                        }
+                        minIdx = j;
+                        // Mark the new minimum
+                        bars[minIdx].classList.add('min-candidate');
+                    }
+
+                    // Unmark the current check
+                    bars[j].classList.remove('comparing');
+                }
+
+                // Swap if needed
+                if (minIdx !== i) {
+                    swapBars(bars[i], bars[minIdx]);
+                    bars[minIdx].classList.remove('min-candidate'); // Remove min color after swap
+                }
+                
+                bars[i].classList.remove('comparing');
+                bars[i].classList.add('sorted');
+            }
+        }
+
+        function stopSort() {
+            abortController = true;
+        }
+
+        function resetUIState() {
+            isSorting = false;
+            btnStart.disabled = false;
+            btnRandom.disabled = false;
+            algoSelect.disabled = false;
+            btnStop.disabled = true;
+            
+            // Clean up any lingering classes if stopped
+            bars.forEach(bar => {
+                bar.classList.remove('comparing');
+                bar.classList.remove('min-candidate');
+            });
+        }
+    </script>
+</body>
+</html>
