@@ -3,8 +3,6 @@ let timeLeft = 720; // Default 12 minutes
 let isRunning = false;
 let timersData = [
     { id: "Spaghetti", time: 720 },
-    { id: "Hard Boiled Egg", time: 540 },
-    { id: "Pizza", time: 900 },
     { id: "Tea", time: 180 }
 ];
 
@@ -16,7 +14,8 @@ const resetBtn = document.getElementById('resetBtn');
 const addTimerBtn = document.getElementById('addTimerBtn');
 const removeTimerBtn = document.getElementById('removeTimerBtn');
 const newIdInput = document.getElementById('newId');
-const newTimeInput = document.getElementById('newTime');
+const newMinsInput = document.getElementById('newMins');
+const newSecsInput = document.getElementById('newSecs');
 
 // Load timers from JSON/LocalStorage
 async function loadTimers() {
@@ -57,9 +56,11 @@ async function loadTimers() {
 function populateDropdown() {
     timerSelect.innerHTML = '';
     timersData.forEach(timer => {
+        const mins = Math.floor(timer.time / 60);
+        const secs = timer.time % 60;
         const option = document.createElement('option');
         option.value = timer.id;
-        option.textContent = `${timer.id} (${Math.floor(timer.time / 60)}:00)`;
+        option.textContent = `${timer.id} (${mins}:${secs.toString().padStart(2, '0')})`;
         timerSelect.appendChild(option);
     });
 }
@@ -71,6 +72,32 @@ function updateDisplay() {
     document.title = `${timerDisplay.textContent} - ${timerSelect.value}`;
 }
 
+function playDing() {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function strike(time) {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, time); // A5 note
+
+        gainNode.gain.setValueAtTime(0.5, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start(time);
+        oscillator.stop(time + 0.5);
+    }
+
+    // Ding Ding Ding
+    strike(audioCtx.currentTime);
+    strike(audioCtx.currentTime + 0.6);
+    strike(audioCtx.currentTime + 1.2);
+}
+
 function startTimer() {
     if (isRunning) return;
     isRunning = true;
@@ -80,7 +107,7 @@ function startTimer() {
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
             isRunning = false;
-            alert('Time is up!');
+            playDing();
         }
     }, 1000);
 }
@@ -115,14 +142,16 @@ timerSelect.addEventListener('change', () => {
 
 addTimerBtn.addEventListener('click', () => {
     const id = newIdInput.value.trim();
-    const mins = parseInt(newTimeInput.value);
+    const mins = parseInt(newMinsInput.value) || 0;
+    const secs = parseInt(newSecsInput.value) || 0;
 
-    if (id && !isNaN(mins)) {
-        timersData.push({ id, time: mins * 60 });
+    if (id && (mins > 0 || secs > 0)) {
+        timersData.push({ id, time: (mins * 60) + secs });
         saveToLocal();
         populateDropdown();
         newIdInput.value = '';
-        newTimeInput.value = '';
+        newMinsInput.value = '';
+        newSecsInput.value = '';
     }
 });
 
