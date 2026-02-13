@@ -138,6 +138,7 @@ timerSelect.addEventListener('change', () => {
     const selected = timersData.find(t => t.id === timerSelect.value);
     timeLeft = selected.time;
     updateDisplay();
+    startTimer();
 });
 
 addTimerBtn.addEventListener('click', () => {
